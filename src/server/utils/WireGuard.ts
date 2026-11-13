@@ -33,6 +33,10 @@ class WireGuard {
    * Apply firewall rules based on current config
    */
   async #applyFirewallRules(wgInterface: InterfaceType) {
+    if (WG_ENV.DISABLE_HOOKS) {
+      // not even the "remove our rules" path: it runs iptables too
+      return;
+    }
     const clients = await Database.clients.getAll();
     const userConfig = await Database.userConfigs.get();
     await firewall.rebuildRules(
@@ -56,6 +60,7 @@ class WireGuard {
     result.push(
       wg.generateServerInterface(wgInterface, hooks, {
         enableIpv6: !WG_ENV.DISABLE_IPV6,
+        disableHooks: WG_ENV.DISABLE_HOOKS,
       })
     );
 
@@ -221,7 +226,7 @@ class WireGuard {
     WG_DEBUG(`Wireguard Interface ${wgInterface.name} started successfully.`);
 
     // Check if firewall was enabled but iptables isn't available
-    if (wgInterface.firewallEnabled) {
+    if (wgInterface.firewallEnabled && !WG_ENV.DISABLE_HOOKS) {
       const enableIpv6 = !WG_ENV.DISABLE_IPV6;
       const iptablesAvailable = await firewall.isAvailable(enableIpv6);
       if (!iptablesAvailable) {

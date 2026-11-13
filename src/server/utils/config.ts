@@ -99,7 +99,20 @@ export const WG_ENV = {
   MAX_CLIENTS_PER_USER: parseMaxClientsPerUser(
     process.env.MAX_CLIENTS_PER_USER
   ),
+  /**
+   * The host's firewall and routing belong to somebody else: write no
+   * PreUp/PostUp/PreDown/PostDown commands into the interface's
+   * configuration, never run iptables, and refuse to change hooks or to
+   * switch the per-client firewall on
+   */
+  DISABLE_HOOKS: process.env.DISABLE_HOOKS === 'true',
 };
+
+if (WG_ENV.DISABLE_HOOKS) {
+  SERVER_DEBUG(
+    'Hooks and per-client firewall: Disabled (DISABLE_HOOKS) - the host firewall is not touched'
+  );
+}
 
 if (WG_ENV.PROXY_AUTH_HEADER) {
   SERVER_DEBUG(`

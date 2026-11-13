@@ -17,6 +17,14 @@ export default definePermissionEventHandler(
       validateZod(InterfaceUpdateSchema, event)
     );
 
+    if (data.firewallEnabled && WG_ENV.DISABLE_HOOKS) {
+      throw createError({
+        statusCode: 400,
+        statusMessage:
+          'The Per-Client Firewall is disabled on this server (DISABLE_HOOKS)',
+      });
+    }
+
     // If enabling firewall, check if iptables is available
     if (data.firewallEnabled) {
       // Clear cache to force fresh check

@@ -1,6 +1,6 @@
-import { getHeader, type H3Event } from 'h3';
+import { getHeader, getRequestIP, type H3Event } from 'h3';
 
-import { isRequestFromTrustedProxy } from '#server/utils/trustedProxy';
+import { isTrustedProxy } from '#server/utils/trustedProxy';
 
 /**
  * Proxy authentication: a reverse proxy in front of wg-easy has already
@@ -104,9 +104,29 @@ export function parseMaxClientsPerUser(value: string | undefined): number {
 }
 
 /**
- * The user name the trusted proxy vouches for on this request.
- * `undefined` when proxy authentication is off, when the request did not
- * come through a trusted proxy, or when the header is absent or unusable.
+ * The decision itself: the user name a peer at `remoteAddress` vouches
+ * for with `headerValue`. `undefined` when proxy authentication is off,
+ * when the peer is not a trusted proxy, or when the header is absent or
+ * unusable.
+ */
+export function proxyUsernameFrom(
+  remoteAddress: string | undefined,
+  headerValue: string | undefined,
+  config: ProxyAuthConfig
+): string | undefined {
+  if (!config.header) {
+    return undefined;
+  }
+  if (!remoteAddress || !isTrustedProxy(remoteAddress, config.trustedProxies)) {
+    return undefined;
+  }
+  return parseProxyUsername(headerValue);
+}
+
+/**
+ * The user name the trusted proxy vouches for on this request. The peer
+ * is the address the connection comes from - never what a header says
+ * about it.
  */
 export function getProxyAuthUsername(
   event: H3Event,
@@ -115,8 +135,9 @@ export function getProxyAuthUsername(
   if (!config.header) {
     return undefined;
   }
-  if (!isRequestFromTrustedProxy(event, config.trustedProxies)) {
-    return undefined;
-  }
-  return parseProxyUsername(getHeader(event, config.header));
+  return proxyUsernameFrom(
+    getRequestIP(event),
+    getHeader(event, config.header),
+    config
+  );
 }

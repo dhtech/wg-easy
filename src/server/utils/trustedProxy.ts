@@ -30,7 +30,7 @@ function normalizeIpAddress(address: string): string | undefined {
   return normalizeCidr(normalizedAddress);
 }
 
-function isTrustedProxy(
+export function isTrustedProxy(
   address: string,
   trustedProxies: readonly string[]
 ): boolean {
@@ -70,7 +70,7 @@ export function getTrustedRequestIP(
   });
 }
 
-export function isRequestFromTrustedProxy(
+function isRequestFromTrustedProxy(
   event: H3Event,
   trustedProxies: readonly string[]
 ): boolean {

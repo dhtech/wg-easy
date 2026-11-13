@@ -1,31 +1,14 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-
-import { createEvent, type H3Event } from 'h3';
 import { describe, expect, test } from 'vitest';
 
 import {
-  getProxyAuthUsername,
   parseMaxClientsPerUser,
   parseProxyAdmins,
   parseProxyAuthHeader,
   parseProxyUsername,
+  proxyUsernameFrom,
 } from '#server/utils/proxyAuth';
 import { parseTrustedProxies } from '#server/utils/trustedProxy';
 import { hasPermissions, roles } from '#shared/utils/permissions';
-
-function createTestEvent(
-  remoteAddress: string,
-  headers: Record<string, string>
-): H3Event {
-  const req = {
-    headers,
-    socket: { remoteAddress },
-    connection: { remoteAddress },
-    url: '/',
-    method: 'GET',
-  } as unknown as IncomingMessage;
-  return createEvent(req, {} as ServerResponse);
-}
 
 describe('parseProxyAuthHeader', () => {
   const proxies = parseTrustedProxies('127.0.0.1');
@@ -100,49 +83,40 @@ describe('parseProxyAdmins and parseMaxClientsPerUser', () => {
   });
 });
 
-describe('getProxyAuthUsername', () => {
+describe('proxyUsernameFrom', () => {
   const config = {
     header: 'x-remote-user',
-    trustedProxies: parseTrustedProxies('127.0.0.1,10.0.0.0/24'),
+    trustedProxies: parseTrustedProxies('127.0.0.1,10.0.0.0/24,::1'),
   };
 
   test('believes the header from a trusted proxy', () => {
-    const event = createTestEvent('127.0.0.1', { 'x-remote-user': 'Alice' });
-    expect(getProxyAuthUsername(event, config)).toBe('alice');
-    const fromNet = createTestEvent('10.0.0.7', { 'x-remote-user': 'bob' });
-    expect(getProxyAuthUsername(fromNet, config)).toBe('bob');
+    expect(proxyUsernameFrom('127.0.0.1', 'Alice', config)).toBe('alice');
+    expect(proxyUsernameFrom('10.0.0.7', 'bob', config)).toBe('bob');
+    expect(proxyUsernameFrom('::1', 'carol', config)).toBe('carol');
   });
 
   test('ignores the header from anybody else', () => {
-    const event = createTestEvent('192.0.2.10', { 'x-remote-user': 'alice' });
-    expect(getProxyAuthUsername(event, config)).toBeUndefined();
+    expect(proxyUsernameFrom('192.0.2.10', 'alice', config)).toBeUndefined();
+    expect(proxyUsernameFrom('10.0.1.7', 'alice', config)).toBeUndefined();
+    expect(proxyUsernameFrom('2001:db8::1', 'alice', config)).toBeUndefined();
   });
 
-  test('is not fooled by a forwarded address', () => {
-    // the peer is what counts, not what the peer says about itself
-    const event = createTestEvent('192.0.2.10', {
-      'x-remote-user': 'alice',
-      'x-forwarded-for': '127.0.0.1',
-    });
-    expect(getProxyAuthUsername(event, config)).toBeUndefined();
+  test('ignores it when the peer is not known', () => {
+    expect(proxyUsernameFrom(undefined, 'alice', config)).toBeUndefined();
+    expect(proxyUsernameFrom('', 'alice', config)).toBeUndefined();
+    expect(
+      proxyUsernameFrom('not an address', 'alice', config)
+    ).toBeUndefined();
   });
 
   test('knows nobody without the header, or with an unusable one', () => {
-    expect(
-      getProxyAuthUsername(createTestEvent('127.0.0.1', {}), config)
-    ).toBeUndefined();
-    expect(
-      getProxyAuthUsername(
-        createTestEvent('127.0.0.1', { 'x-remote-user': 'two words' }),
-        config
-      )
-    ).toBeUndefined();
+    expect(proxyUsernameFrom('127.0.0.1', undefined, config)).toBeUndefined();
+    expect(proxyUsernameFrom('127.0.0.1', 'two words', config)).toBeUndefined();
   });
 
   test('is off without a configured header', () => {
-    const event = createTestEvent('127.0.0.1', { 'x-remote-user': 'alice' });
     expect(
-      getProxyAuthUsername(event, { ...config, header: undefined })
+      proxyUsernameFrom('127.0.0.1', 'alice', { ...config, header: undefined })
     ).toBeUndefined();
   });
 });

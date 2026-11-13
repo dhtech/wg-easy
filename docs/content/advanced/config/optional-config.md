@@ -13,6 +13,7 @@ You can set these environment variables to configure the container. They are not
 | `DISABLE_VERSION_CHECK` | `false`   | `true`                      | If wg-easy should check for new updates                         |
 | `TRUSTED_PROXIES`       |           | `172.18.0.2,fd00:1234::/64` | Proxy IP addresses or CIDRs allowed to forward request metadata |
 | `WG_INTERFACE`          | `wg0`     | `wg1`                       | Name of the WireGuard interface                                 |
+| `DISABLE_HOOKS`         | `false`   | `true`                      | Never run hooks or iptables: the host manages its own firewall  |
 
 /// note | IPv6 Caveats
 
@@ -51,3 +52,41 @@ Set `WG_INTERFACE` to specify a custom interface name, useful if you are running
 environment:
     - WG_INTERFACE=wg1
 ```
+
+## Disable Hooks
+
+By default wg-easy manages the firewall for you: the interface's `PostUp` and
+`PostDown` hooks add and remove iptables rules (NAT and forwarding), an
+administrator can edit those hooks in the Web UI, and the Per-Client Firewall
+adds further iptables rules.
+
+Set `DISABLE_HOOKS` when the firewall and the routing of the host belong to
+somebody else, for example a host with its own nftables ruleset and
+`network_mode: host`:
+
+```yaml
+environment:
+    - DISABLE_HOOKS=true
+```
+
+With it
+
+- no `PreUp`, `PostUp`, `PreDown` or `PostDown` line is written into the
+  interface's configuration, whatever the database holds
+- wg-easy never runs `iptables` or `ip6tables`
+- changing the hooks and switching the Per-Client Firewall on are refused,
+  for administrators too
+
+You then have to allow and route the tunnel's traffic yourself: forwarding
+(`net.ipv4.ip_forward`), a rule that lets packets from the WireGuard
+interface through, the WireGuard port, and NAT if the clients' addresses are
+not routed to the host.
+
+/// warning | Hooks are commands
+
+A hook is a shell command that runs as root inside the container. With
+`network_mode: host` and `NET_ADMIN` that is root over the host's network:
+whoever can edit a hook can replace the host's firewall. If your
+administrators should not have that power, set `DISABLE_HOOKS`.
+
+///

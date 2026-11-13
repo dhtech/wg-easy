@@ -187,3 +187,48 @@ Before disabling password authentication, ensure that at least one OAuth provide
 If no login method is available, you will not be able to log in to the application and will need to reset the configuration to regain access.
 
 ///
+
+## Proxy Authentication
+
+A reverse proxy in front of wg-easy can do the login (basic authentication
+against LDAP, a single sign-on portal, ...) and tell wg-easy who it is in a
+request header.
+
+| Env                        | Required | Default | Example         | Description                                                     |
+| -------------------------- | -------- | ------- | --------------- | --------------------------------------------------------------- |
+| `PROXY_AUTH_HEADER`        | :x:      |         | `X-Remote-User` | Header in which the proxy passes the user name                  |
+| `TRUSTED_PROXIES`          | with it  |         | `127.0.0.1`     | The only addresses the header is believed from                  |
+| `PROXY_AUTH_AUTO_REGISTER` | :x:      | `false` | `true`          | Create an account for a user the proxy vouches for              |
+| `PROXY_AUTH_ADMINS`        | :x:      |         | `alice,bob`     | User names that are administrators                              |
+| `MAX_CLIENTS_PER_USER`     | :x:      | `0`     | `3`             | How many clients an ordinary user may have, `0` means no limit  |
+
+With `PROXY_AUTH_HEADER` set
+
+- the proxy is the only way in: password login, sessions and OAuth are not
+  used. wg-easy refuses to start without `TRUSTED_PROXIES`, and the header is
+  ignored on every request that does not come from one of those addresses
+- user names are compared in lower case
+- the users in `PROXY_AUTH_ADMINS` are administrators. Everybody else is an
+  ordinary user: they make their own clients (up to `MAX_CLIENTS_PER_USER`),
+  see, download, switch on and off and delete only their own, and cannot
+  change a client's settings or anything under Admin
+- there is no logout: the login belongs to the proxy
+
+/// warning | The proxy must own the header
+
+The proxy has to set the header itself on every request - and so overwrite
+whatever the client sent. Make sure wg-easy's port can only be reached
+through the proxy (for example `HOST=127.0.0.1`).
+
+///
+
+Example for nginx with a directory login:
+
+```nginx
+location / {
+    auth_pam "VPN";
+    auth_pam_service_name "wg-easy";
+    proxy_set_header X-Remote-User $remote_user;
+    proxy_pass http://127.0.0.1:51821;
+}
+```
