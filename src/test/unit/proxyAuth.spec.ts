@@ -1,8 +1,14 @@
-import { describe, expect, test } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import {
+  createProxyAdminsFile,
   parseMaxClientsPerUser,
   parseProxyAdmins,
+  parseProxyAdminsText,
   parseProxyAuthHeader,
   parseProxyUsername,
   proxyUsernameFrom,
@@ -80,6 +86,64 @@ describe('parseProxyAdmins and parseMaxClientsPerUser', () => {
     expect(() => parseMaxClientsPerUser('-1')).toThrow(
       'Invalid MAX_CLIENTS_PER_USER'
     );
+  });
+});
+
+describe('the administrators file', () => {
+  let dir: string;
+  let file: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wg-easy-admins-'));
+    file = path.join(dir, 'admins');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('text: names per line or comma separated, comments, no repeats', () => {
+    expect(
+      parseProxyAdminsText('# the leaders\nAlice\nbob, carol # two\n\nalice\n')
+    ).toEqual(['alice', 'bob', 'carol']);
+  });
+
+  test('text: what is no user name is skipped, the rest stays', () => {
+    expect(parseProxyAdminsText('alice\ntwo words\n-x\nbob\n')).toEqual([
+      'alice',
+      'bob',
+    ]);
+    expect(parseProxyAdminsText('')).toEqual([]);
+  });
+
+  test('no file configured: nobody', () => {
+    expect(createProxyAdminsFile(undefined)()).toEqual([]);
+  });
+
+  test('a missing file names nobody, and is found when it appears', () => {
+    const admins = createProxyAdminsFile(file);
+    expect(admins()).toEqual([]);
+    fs.writeFileSync(file, 'alice\n');
+    expect(admins()).toEqual(['alice']);
+  });
+
+  test('follows the file when it is replaced', () => {
+    fs.writeFileSync(file, 'alice\n');
+    const admins = createProxyAdminsFile(file);
+    expect(admins()).toEqual(['alice']);
+    // replaced the way careful writers do it: a new file moved in place
+    const next = path.join(dir, 'admins.new');
+    fs.writeFileSync(next, 'bob\ncarol\n');
+    fs.renameSync(next, file);
+    expect(admins()).toEqual(['bob', 'carol']);
+  });
+
+  test('a file that goes away names nobody again', () => {
+    fs.writeFileSync(file, 'alice\n');
+    const admins = createProxyAdminsFile(file);
+    expect(admins()).toEqual(['alice']);
+    fs.rmSync(file);
+    expect(admins()).toEqual([]);
   });
 });
 

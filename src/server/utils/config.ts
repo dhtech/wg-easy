@@ -95,6 +95,12 @@ export const WG_ENV = {
   PROXY_AUTH_AUTO_REGISTER: process.env.PROXY_AUTH_AUTO_REGISTER === 'true',
   /** User names that are administrators when they come through the proxy */
   PROXY_AUTH_ADMINS: parseProxyAdmins(process.env.PROXY_AUTH_ADMINS),
+  /**
+   * A file with more administrators' user names, read again whenever it
+   * changes
+   */
+  PROXY_AUTH_ADMINS_FILE:
+    process.env.PROXY_AUTH_ADMINS_FILE?.trim() || undefined,
   /** How many clients an ordinary user may have, 0 = no limit */
   MAX_CLIENTS_PER_USER: parseMaxClientsPerUser(
     process.env.MAX_CLIENTS_PER_USER
@@ -118,7 +124,7 @@ if (WG_ENV.PROXY_AUTH_HEADER) {
   SERVER_DEBUG(`
 Proxy authentication: header ${WG_ENV.PROXY_AUTH_HEADER}, trusted proxies ${WG_ENV.TRUSTED_PROXIES.join(', ')}
 Proxy auto register: ${WG_ENV.PROXY_AUTH_AUTO_REGISTER ? 'Enabled' : 'Disabled'}
-Proxy administrators: ${WG_ENV.PROXY_AUTH_ADMINS.join(', ') || 'None'}
+Proxy administrators: ${WG_ENV.PROXY_AUTH_ADMINS.join(', ') || 'None'}${WG_ENV.PROXY_AUTH_ADMINS_FILE ? ` and those in ${WG_ENV.PROXY_AUTH_ADMINS_FILE}` : ''}
 `);
 }
 

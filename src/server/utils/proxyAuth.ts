@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 import { getHeader, getRequestIP, type H3Event } from 'h3';
 
 import { isTrustedProxy } from '#server/utils/trustedProxy';
@@ -85,6 +87,58 @@ export function parseProxyAdmins(value: string | undefined): string[] {
       }
       return username;
     });
+}
+
+/**
+ * The user names in the text of a `PROXY_AUTH_ADMINS_FILE`: one per line
+ * or comma separated, `#` starts a comment. What is no user name is
+ * skipped - a file is read while requests are served, there is nobody to
+ * refuse it to.
+ */
+export function parseProxyAdminsText(text: string): string[] {
+  const names: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    for (const entry of line.replace(/#.*$/, '').split(',')) {
+      const username = parseProxyUsername(entry);
+      if (username && !names.includes(username)) {
+        names.push(username);
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * `PROXY_AUTH_ADMINS_FILE`: more administrators, from a file. The file is
+ * read again whenever it changes, so the list can follow a directory
+ * group without a restart (a restart takes the tunnel down for
+ * everybody). A file that is missing or cannot be read names nobody.
+ *
+ * Returns the function that gives the names as they are now.
+ */
+export function createProxyAdminsFile(
+  path: string | undefined
+): () => readonly string[] {
+  if (!path) {
+    return () => [];
+  }
+  let seen = '';
+  let names: string[] = [];
+  return () => {
+    try {
+      const stat = fs.statSync(path);
+      // replaced (new inode) or rewritten in place: both show here
+      const now = `${stat.ino}:${stat.mtimeMs}:${stat.size}`;
+      if (now !== seen) {
+        names = parseProxyAdminsText(fs.readFileSync(path, 'utf8'));
+        seen = now;
+      }
+    } catch {
+      names = [];
+      seen = '';
+    }
+    return names;
+  };
 }
 
 /**

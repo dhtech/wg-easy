@@ -4,7 +4,10 @@ import type { H3Event } from 'h3';
 import Database from '#server/utils/Database';
 import { WG_ENV } from '#server/utils/config';
 import { isPasswordValid } from '#server/utils/password';
-import { getProxyAuthUsername } from '#server/utils/proxyAuth';
+import {
+  createProxyAdminsFile,
+  getProxyAuthUsername,
+} from '#server/utils/proxyAuth';
 import type { ID } from '#server/utils/types';
 import { roles } from '#shared/utils/permissions';
 import type { UserType } from '#db/repositories/user/types';
@@ -50,6 +53,11 @@ export async function getWGSession(event: H3Event) {
   });
 }
 
+/** the administrators named in PROXY_AUTH_ADMINS_FILE, as they are now */
+const proxyAdminsFromFile = createProxyAdminsFile(
+  WG_ENV.PROXY_AUTH_ADMINS_FILE
+);
+
 /**
  * Proxy authentication: the account of the user the trusted reverse
  * proxy has authenticated for this request, if any.
@@ -62,9 +70,10 @@ async function getProxyUser(event: H3Event) {
   if (!username) {
     return undefined;
   }
-  const role = WG_ENV.PROXY_AUTH_ADMINS.includes(username)
-    ? roles.ADMIN
-    : roles.CLIENT;
+  const isAdmin =
+    WG_ENV.PROXY_AUTH_ADMINS.includes(username) ||
+    proxyAdminsFromFile().includes(username);
+  const role = isAdmin ? roles.ADMIN : roles.CLIENT;
   return Database.users.getForProxy(
     username,
     role,

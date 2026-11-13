@@ -1,0 +1,63 @@
+name: dhtech release
+
+# The releases of this fork (branch dhtech). Pushing a tag vX.Y.Z-dhN
+# builds the container image and publishes it as a FILE on a GitHub
+# release:
+#
+#   wg-easy_<version>_linux_amd64.tar.gz   an image archive, for
+#                                          `podman load` / `docker load`;
+#                                          the image in it is named
+#                                          localhost/wg-easy:<version>
+#   SHA256SUMS
+#
+# Nothing is pushed to a registry: the servers that run it get the file
+# from a mirror and have no need of the internet.
+
+on:
+  push:
+    tags: ["v*-dh*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the image archive
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'dhtech'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build stage (dependencies, Web UI, tools)
+        run: docker build --target build -t wg-easy-build .
+
+      - name: Typecheck
+        run: docker run --rm --network none wg-easy-build pnpm typecheck
+
+      # trustedProxy.spec.ts is upstream's and fails in upstream's own
+      # build of v15.5.0 too: the test builds its requests with h3's
+      # createEvent, and the h3 the tests see is 2.x, which has none.
+      # Left as upstream has it; everything else has to pass.
+      - name: Unit tests
+        run: >
+          docker run --rm --network none wg-easy-build
+          pnpm exec vitest run --project unit
+          --exclude test/unit/trustedProxy.spec.ts
+
+      - name: Image archive
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          docker build -t "localhost/wg-easy:${version}" .
+          mkdir dist
+          docker save "localhost/wg-easy:${version}" | gzip -9 > "dist/wg-easy_${version}_linux_amd64.tar.gz"
+          (cd dist && sha256sum *.tar.gz > SHA256SUMS && cat SHA256SUMS && ls -l)
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}" dist/*
+          --title "${GITHUB_REF_NAME}"
+          --notes "wg-easy ${GITHUB_REF_NAME%-dh*} with the dhtech changes
+          (proxy authentication, ordinary users, DISABLE_HOOKS). The image
+          is in the archive: podman load -i wg-easy_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz"

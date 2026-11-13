@@ -200,6 +200,7 @@ request header.
 | `TRUSTED_PROXIES`          | with it  |         | `127.0.0.1`     | The only addresses the header is believed from                  |
 | `PROXY_AUTH_AUTO_REGISTER` | :x:      | `false` | `true`          | Create an account for a user the proxy vouches for              |
 | `PROXY_AUTH_ADMINS`        | :x:      |         | `alice,bob`     | User names that are administrators                              |
+| `PROXY_AUTH_ADMINS_FILE`   | :x:      |         | `/admins/list`  | A file with more administrators, read again when it changes     |
 | `MAX_CLIENTS_PER_USER`     | :x:      | `0`     | `3`             | How many clients an ordinary user may have, `0` means no limit  |
 
 With `PROXY_AUTH_HEADER` set
@@ -208,11 +209,19 @@ With `PROXY_AUTH_HEADER` set
   used. wg-easy refuses to start without `TRUSTED_PROXIES`, and the header is
   ignored on every request that does not come from one of those addresses
 - user names are compared in lower case
-- the users in `PROXY_AUTH_ADMINS` are administrators. Everybody else is an
-  ordinary user: they make their own clients (up to `MAX_CLIENTS_PER_USER`),
+- the users in `PROXY_AUTH_ADMINS` and in the file `PROXY_AUTH_ADMINS_FILE`
+  are administrators. Everybody else is an ordinary user: they make their own clients (up to `MAX_CLIENTS_PER_USER`),
   see, download, switch on and off and delete only their own, and cannot
   change a client's settings or anything under Admin
 - there is no logout: the login belongs to the proxy
+
+`PROXY_AUTH_ADMINS_FILE` holds user names, one per line or comma separated;
+`#` starts a comment. wg-easy reads it again whenever it changes, so a job
+on the host can keep it in step with a directory group without restarting
+the container (a restart takes the tunnel down for everybody). Mount the
+directory the file is in, not the file itself: a file that is replaced by
+moving a new one into place is otherwise not seen. A file that is missing or
+unreadable names nobody.
 
 /// warning | The proxy must own the header
 
