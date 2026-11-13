@@ -173,7 +173,10 @@ export class ClientService {
     return this.#statements.findByIdPublic.execute({ id });
   }
 
-  async create({ name, expiresAt }: ClientCreateType) {
+  /**
+   * @param userId the user the client belongs to
+   */
+  async create({ name, expiresAt }: ClientCreateType, userId: ID) {
     const privateKey = await wg.generatePrivateKey();
     const publicKey = await wg.getPublicKey(privateKey);
     const preSharedKey = await wg.generatePreSharedKey();
@@ -209,8 +212,7 @@ export class ClientService {
         .insert(client)
         .values({
           name,
-          // TODO: properly assign user id
-          userId: 1,
+          userId,
           interfaceId: WG_ENV.WG_INTERFACE,
           expiresAt,
           privateKey,

@@ -85,7 +85,8 @@
     "insecure": "You can't log in with an insecure connection. Use HTTPS.",
     "2faRequired": "Two Factor Authentication is required",
     "2faWrong": "Two Factor Authentication is wrong",
-    "loginExpired": "Login expired. Try again"
+    "loginExpired": "Login expired. Try again",
+    "proxyAuth": "Signing in is done before you get here. Open this page through its normal address."
   },
   "client": {
     "empty": "There are no clients yet.",

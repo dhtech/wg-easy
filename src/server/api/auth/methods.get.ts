@@ -19,6 +19,8 @@ export default defineEventHandler(() => {
     oauthEnabled:
       WG_ENV.OAUTH_PROVIDERS !== undefined && WG_ENV.OAUTH_PROVIDERS.length > 0,
     passwordDisabled: WG_ENV.DISABLE_PASSWORD_AUTH,
+    /** logins are a reverse proxy's business: there is nothing to sign in to here */
+    proxyAuth: WG_ENV.PROXY_AUTH_HEADER !== undefined,
     autoLaunchProvider: WG_ENV.OAUTH_AUTO_LAUNCH,
   };
 });

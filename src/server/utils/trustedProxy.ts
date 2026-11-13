@@ -70,7 +70,7 @@ export function getTrustedRequestIP(
   });
 }
 
-function isRequestFromTrustedProxy(
+export function isRequestFromTrustedProxy(
   event: H3Event,
   trustedProxies: readonly string[]
 ): boolean {

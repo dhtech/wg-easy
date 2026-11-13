@@ -11,7 +11,7 @@ import {
 
 export default definePermissionEventHandler(
   'clients',
-  'update',
+  'edit',
   async ({ event, checkPermissions }) => {
     const { clientId } = await getValidatedRouterParams(
       event,

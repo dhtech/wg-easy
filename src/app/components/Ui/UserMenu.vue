@@ -51,7 +51,7 @@
             {{ $t('pages.admin.panel') }}
           </NuxtLink>
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem v-if="!authMethods?.proxyAuth">
           <button
             class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:text-white"
             @click.prevent="submit"
@@ -70,6 +70,9 @@ import { $fetch } from '#imports';
 
 const authStore = useAuthStore();
 const toggleState = ref(false);
+
+// with proxy authentication there is no session of ours to log out of
+const { data: authMethods } = await useFetch('/api/auth/methods');
 
 const _submit = useSubmit(
   (data) =>

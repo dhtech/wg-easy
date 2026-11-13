@@ -1,9 +1,14 @@
 import { createError, defineEventHandler } from 'h3';
 
-import { SERVER_DEBUG } from '#server/utils/config';
+import { SERVER_DEBUG, WG_ENV } from '#server/utils/config';
 import { useWGSession } from '#server/utils/session';
 
 export default defineEventHandler(async (event) => {
+  if (WG_ENV.PROXY_AUTH_HEADER) {
+    // nothing of ours to end: the login is the proxy's
+    return { success: true };
+  }
+
   const session = await useWGSession(event);
   const sessionId = session.id;
 

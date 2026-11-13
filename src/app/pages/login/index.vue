@@ -1,5 +1,12 @@
 <template>
   <div class="flex flex-col gap-5">
+    <p
+      v-if="authMethods?.proxyAuth"
+      class="text-center text-sm text-gray-700 dark:text-neutral-200"
+    >
+      {{ $t('login.proxyAuth') }}
+    </p>
+
     <div
       v-if="authMethods && authMethods.oauthEnabled"
       class="flex flex-col gap-5"

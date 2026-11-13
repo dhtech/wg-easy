@@ -3,6 +3,11 @@ import packageJson from '@@/package.json';
 
 import { exec } from '#server/utils/cmd';
 import { parseInterfaceName } from '#server/utils/interfaceName';
+import {
+  parseMaxClientsPerUser,
+  parseProxyAdmins,
+  parseProxyAuthHeader,
+} from '#server/utils/proxyAuth';
 import { parseTrustedProxies } from '#server/utils/trustedProxy';
 import {
   OAUTH_PROVIDERS,
@@ -44,6 +49,12 @@ const oauthProviders = process.env.OAUTH_PROVIDERS?.split(',')
   .filter((v) => isValidOauthProvider(v))
   .filter((v) => isConfiguredOauthProvider(OAUTH_PROVIDERS[v]));
 
+const trustedProxies = parseTrustedProxies(process.env.TRUSTED_PROXIES);
+const proxyAuthHeader = parseProxyAuthHeader(
+  process.env.PROXY_AUTH_HEADER,
+  trustedProxies
+);
+
 export const WG_ENV = {
   /** UI is hosted on HTTP instead of HTTPS */
   INSECURE: process.env.INSECURE === 'true',
@@ -66,11 +77,37 @@ export const WG_ENV = {
   /** Which OAuth provider to automatically launch */
   OAUTH_AUTO_LAUNCH:
     oauthProviders?.find((p) => p === process.env.OAUTH_AUTO_LAUNCH) ?? null,
-  /** Disable password authentication */
-  DISABLE_PASSWORD_AUTH: process.env.DISABLE_PASSWORD_AUTH === 'true',
+  /**
+   * Disable password authentication. Always off with proxy
+   * authentication: then the proxy is the only way in
+   */
+  DISABLE_PASSWORD_AUTH:
+    process.env.DISABLE_PASSWORD_AUTH === 'true' ||
+    proxyAuthHeader !== undefined,
   /** Proxies allowed to provide forwarded request information */
-  TRUSTED_PROXIES: parseTrustedProxies(process.env.TRUSTED_PROXIES),
+  TRUSTED_PROXIES: trustedProxies,
+  /**
+   * Proxy authentication: the (lower-case) request header in which a
+   * trusted proxy passes the name of the user it has authenticated
+   */
+  PROXY_AUTH_HEADER: proxyAuthHeader,
+  /** Create an account for a user the proxy vouches for and we do not know */
+  PROXY_AUTH_AUTO_REGISTER: process.env.PROXY_AUTH_AUTO_REGISTER === 'true',
+  /** User names that are administrators when they come through the proxy */
+  PROXY_AUTH_ADMINS: parseProxyAdmins(process.env.PROXY_AUTH_ADMINS),
+  /** How many clients an ordinary user may have, 0 = no limit */
+  MAX_CLIENTS_PER_USER: parseMaxClientsPerUser(
+    process.env.MAX_CLIENTS_PER_USER
+  ),
 };
+
+if (WG_ENV.PROXY_AUTH_HEADER) {
+  SERVER_DEBUG(`
+Proxy authentication: header ${WG_ENV.PROXY_AUTH_HEADER}, trusted proxies ${WG_ENV.TRUSTED_PROXIES.join(', ')}
+Proxy auto register: ${WG_ENV.PROXY_AUTH_AUTO_REGISTER ? 'Enabled' : 'Disabled'}
+Proxy administrators: ${WG_ENV.PROXY_AUTH_ADMINS.join(', ') || 'None'}
+`);
+}
 
 if (WG_ENV.OAUTH_PROVIDERS && WG_ENV.OAUTH_PROVIDERS.length > 0) {
   SERVER_DEBUG(`

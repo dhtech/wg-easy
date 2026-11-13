@@ -8,7 +8,7 @@ import { WG_ENV } from '#server/utils/config';
 import type { OAUTH_PROVIDER } from '#server/utils/oauth';
 import { hashPassword, isPasswordValid } from '#server/utils/password';
 import type { ID } from '#server/utils/types';
-import { roles } from '#shared/utils/permissions';
+import { roles, type Role } from '#shared/utils/permissions';
 import type { DBType } from '#db/sqlite';
 
 type LoginResult =
@@ -136,6 +136,53 @@ export class UserService {
         totpVerified: false,
         enabled: true,
       });
+    });
+  }
+
+  /**
+   * The account of a user a trusted reverse proxy vouches for (proxy
+   * authentication). Its role follows what the proxy setup says each
+   * time - an administrator taken off the list is an ordinary user at
+   * the next request. An unknown user gets an account only with
+   * `autoRegister`; it has no password, the proxy is its only way in.
+   */
+  async getForProxy(username: string, role: Role, autoRegister: boolean) {
+    return this.#db.transaction(async (tx) => {
+      const existing = await tx.query.user
+        .findFirst({
+          where: eq(user.username, username),
+        })
+        .execute();
+
+      if (existing) {
+        if (existing.role !== role) {
+          await tx
+            .update(user)
+            .set({ role })
+            .where(eq(user.id, existing.id))
+            .execute();
+          return { ...existing, role };
+        }
+        return existing;
+      }
+
+      if (!autoRegister) {
+        return undefined;
+      }
+
+      const created = await tx
+        .insert(user)
+        .values({
+          username,
+          password: null,
+          email: null,
+          name: username,
+          role,
+          totpVerified: false,
+          enabled: true,
+        })
+        .returning();
+      return created[0];
     });
   }
 

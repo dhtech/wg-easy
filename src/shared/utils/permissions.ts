@@ -67,7 +67,12 @@ type RolesWithPermissions = {
 export type Permissions = {
   clients: {
     dataType: Pick<ClientType, 'id' | 'userId'>;
-    action: 'view' | 'create' | 'update' | 'delete' | 'custom';
+    /**
+     * update: switch on and off, one time links
+     *
+     * edit: change the settings (addresses, allowed IPs, routes, hooks)
+     */
+    action: 'view' | 'create' | 'update' | 'edit' | 'delete' | 'custom';
   };
   admin: {
     dataType: never;
@@ -85,6 +90,7 @@ export const ROLES = {
       view: true,
       create: true,
       update: true,
+      edit: true,
       delete: true,
       custom: true,
     },
@@ -98,8 +104,13 @@ export const ROLES = {
   CLIENT: {
     clients: {
       view: (user, client) => user.id === client.userId,
-      create: false,
+      // an ordinary user makes clients of their own (how many:
+      // MAX_CLIENTS_PER_USER) ...
+      create: true,
       update: (user, client) => user.id === client.userId,
+      // ... but does not change their settings: a client's addresses
+      // and routes decide whose traffic it gets
+      edit: false,
       delete: (user, client) => user.id === client.userId,
       custom: true,
     },

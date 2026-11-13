@@ -4,7 +4,9 @@ import type { H3Event } from 'h3';
 import Database from '#server/utils/Database';
 import { WG_ENV } from '#server/utils/config';
 import { isPasswordValid } from '#server/utils/password';
+import { getProxyAuthUsername } from '#server/utils/proxyAuth';
 import type { ID } from '#server/utils/types';
+import { roles } from '#shared/utils/permissions';
 import type { UserType } from '#db/repositories/user/types';
 
 export type WGSession = Partial<{
@@ -49,9 +51,50 @@ export async function getWGSession(event: H3Event) {
 }
 
 /**
+ * Proxy authentication: the account of the user the trusted reverse
+ * proxy has authenticated for this request, if any.
+ */
+async function getProxyUser(event: H3Event) {
+  const username = getProxyAuthUsername(event, {
+    header: WG_ENV.PROXY_AUTH_HEADER,
+    trustedProxies: WG_ENV.TRUSTED_PROXIES,
+  });
+  if (!username) {
+    return undefined;
+  }
+  const role = WG_ENV.PROXY_AUTH_ADMINS.includes(username)
+    ? roles.ADMIN
+    : roles.CLIENT;
+  return Database.users.getForProxy(
+    username,
+    role,
+    WG_ENV.PROXY_AUTH_AUTO_REGISTER
+  );
+}
+
+/**
  * @throws
  */
 export async function getCurrentUser(event: H3Event) {
+  if (WG_ENV.PROXY_AUTH_HEADER) {
+    // the proxy is the only way in: no session, no password, no header
+    // from anybody but the proxy
+    const proxyUser = await getProxyUser(event);
+    if (!proxyUser) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: 'Session failed. Not authenticated by the proxy',
+      });
+    }
+    if (!proxyUser.enabled) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'User is disabled',
+      });
+    }
+    return proxyUser;
+  }
+
   const session = await getWGSession(event);
 
   const authorization = getHeader(event, 'Authorization');

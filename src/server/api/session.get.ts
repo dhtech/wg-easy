@@ -1,10 +1,17 @@
 import { createError, defineEventHandler } from 'h3';
+import type { H3Event } from 'h3';
 
 import Database from '#server/utils/Database';
-import { useWGSession } from '#server/utils/session';
+import { WG_ENV } from '#server/utils/config';
+import { getCurrentUser, useWGSession } from '#server/utils/session';
 import type { SharedPublicUser } from '#shared/utils/permissions';
 
-export default defineEventHandler(async (event) => {
+async function sessionUser(event: H3Event) {
+  if (WG_ENV.PROXY_AUTH_HEADER) {
+    // proxy authentication: who it is comes with every request
+    return getCurrentUser(event);
+  }
+
   const session = await useWGSession(event);
 
   if (!session.data.userId || session.data.pendingLogin) {
@@ -28,6 +35,11 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'User is disabled',
     });
   }
+  return user;
+}
+
+export default defineEventHandler(async (event) => {
+  const user = await sessionUser(event);
 
   return {
     id: user.id,
